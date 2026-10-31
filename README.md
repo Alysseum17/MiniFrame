@@ -1,2 +1,15 @@
 # MiniFrame
-A lightweight columnar DataFrame engine built from scratch in Python, featuring a Polars-inspired API, SQL-like null semantics, joins, aggregations, and window functions.
+
+A lightweight columnar DataFrame engine built from scratch in Python 3.12, featuring a Polars-inspired API.
+
+## Planned Features
+
+- Columnar storage with explicit null handling
+- Immutable Series and DataFrame
+- Joins, grouping, sorting, and window functions
+- Custom binary file format and CSV support
+- Comprehensive automated testing
+
+## Status
+
+🚧 In development — design and planning stage.
