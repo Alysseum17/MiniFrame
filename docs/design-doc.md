@@ -14,7 +14,9 @@
 | Версія документа | 1.0 (чернетка для затвердження) |
 | Дата | 9 жовтня 2026 |
 
-![Логотип MiniFrame](assets/miniframe-logo.png)
+<p align="center">
+  <img src="assets/miniframe-logo.png" alt="MiniFrame Логотип" width="150">
+</p>
 
 ## Зміст
 

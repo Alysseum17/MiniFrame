@@ -10,6 +10,10 @@ A lightweight columnar DataFrame engine built from scratch in Python 3.12, featu
 - Custom binary file format and CSV support
 - Comprehensive automated testing
 
+## Documentation
+
+- [Design Document](docs/design-doc.md)
+
 ## Status
 
 🚧 In development — design and planning stage.
