@@ -8,7 +8,7 @@
 | --- | --- |
 | Тема | Власний DataFrame-рушій (аналог pandas) з Polars-стилем API |
 | Автор | Марченко Данііл |
-| Мова реалізації | Python 3.12 |
+| Мова реалізації | Python 3.14 |
 | Тестування | pytest, Hypothesis, coverage.py (branch), mutmut, pytest-benchmark |
 | Оракули (тільки тести) | Polars, DuckDB, pandas, pyarrow |
 | Версія документа | 1.0 (чернетка для затвердження) |

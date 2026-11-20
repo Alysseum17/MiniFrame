@@ -1,0 +1,1 @@
+"""MiniFrame's public package."""
