@@ -155,9 +155,11 @@ class Column:
         self._length = len(validity)
         self._null_count = self._length - validity.popcount()
 
-    def _with_storage(self, values: _Storage, validity: Bitmap) -> Self:
+    def _with_storage(
+        self, values: _Storage, validity: Bitmap, *, dtype: DType | None = None
+    ) -> Self:
         result = self.__class__.__new__(self.__class__)
-        result._init_storage(self._dtype, values, validity)
+        result._init_storage(self._dtype if dtype is None else dtype, values, validity)
         return result
 
     @classmethod
