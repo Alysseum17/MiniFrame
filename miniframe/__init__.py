@@ -9,6 +9,7 @@ from .errors import (
     SchemaError,
     ShapeError,
 )
+from .series import Series
 
 __all__ = [
     "Boolean",
@@ -21,6 +22,7 @@ __all__ = [
     "Int64",
     "MiniFrameError",
     "SchemaError",
+    "Series",
     "ShapeError",
     "String",
 ]
