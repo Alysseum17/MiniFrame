@@ -340,3 +340,42 @@ def test_mixed_numeric_series(pairs: list[tuple[int | None, float | None]]) -> N
     )
     assert_series(left, Int64, [x for x, _ in pairs])
     assert_series(right, Float64, [y for _, y in pairs], "y")
+
+
+def test_series_scalar_aggregates() -> None:
+    source = Series("x", [None, "2", "4", "6", None])
+    s = source.cast(Int64) - 1
+    for actual, expected in (
+        (s.sum(), 9),
+        (s.mean(), 3.0),
+        (s.min(), 1),
+        (s.max(), 5),
+        (s.count(), 3),
+        (s.len(), 5),
+        (s.n_unique(), 4),
+        (s.var(), 4.0),
+        (s.std(), 2.0),
+        (s.first(), None),
+        (s.last(), None),
+    ):
+        assert type(actual) is type(expected)
+        assert actual == expected
+    assert_series(s, Int64, [None, 1, 3, 5, None])
+    assert_series(source, String, [None, "2", "4", "6", None])
+    assert type(s.cast(Float64).sum()) is float
+
+
+def test_series_aggregate_types_and_errors() -> None:
+    flags = Series("flags", [False, True, None, True])
+    assert flags.first() is False
+    assert flags.last() is True
+    assert flags.n_unique() == 3
+    for method in (flags.sum, flags.mean, flags.var, flags.std, flags.min, flags.max):
+        with pytest.raises(SchemaError):
+            method()
+    text = Series("text", ["last", "first"], Categorical)
+    assert (text.min(), text.max()) == ("first", "last")
+    with pytest.raises(SchemaError):
+        text.mean()
+    with pytest.raises(ComputeError):
+        Series("x", [INT64_MAX, 1]).sum()

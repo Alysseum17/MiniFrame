@@ -7,7 +7,7 @@ from .bitmap import Bitmap
 from .column import Column, _Scalar
 from .dtype import Boolean, DType, Float64, Int64, String
 from .errors import SchemaError
-from .kernels import arithmetic, compare, logic
+from .kernels import aggregate, arithmetic, compare, logic
 from .kernels.cast import cast_column
 
 
@@ -189,3 +189,47 @@ class Series:
 
     def __invert__(self) -> Self:
         return self._with_column(logic.not_kleene(self._column))
+
+    def sum(self) -> int | float:
+        """Sum valid numeric values, checking Int64 overflow at every addition."""
+        return aggregate.aggregate_sum(self._column)
+
+    def mean(self) -> float | None:
+        """Return the mean of the valid numeric values, or None for an empty sample."""
+        return aggregate.aggregate_mean(self._column)
+
+    def min(self) -> _Scalar:
+        """Return the least valid numeric or text value, ordering NaN last."""
+        return aggregate.aggregate_min(self._column)
+
+    def max(self) -> _Scalar:
+        """Return the greatest valid numeric or text value, ordering NaN last."""
+        return aggregate.aggregate_max(self._column)
+
+    def count(self) -> int:
+        """Count non-null positions."""
+        return aggregate.aggregate_count(self._column)
+
+    def len(self) -> int:
+        """Count all positions, including nulls."""
+        return aggregate.aggregate_len(self._column)
+
+    def n_unique(self) -> int:
+        """Count distinct values, treating null and NaN as separate distinct values."""
+        return aggregate.aggregate_n_unique(self._column)
+
+    def var(self) -> float | None:
+        """Return sample variance, or None for fewer than two valid observations."""
+        return aggregate.aggregate_var(self._column)
+
+    def std(self) -> float | None:
+        """Return sample standard deviation, or None for fewer than two valid observations."""
+        return aggregate.aggregate_std(self._column)
+
+    def first(self) -> _Scalar:
+        """Return the first value by position, or None for an empty Series."""
+        return aggregate.aggregate_first(self._column)
+
+    def last(self) -> _Scalar:
+        """Return the last value by position, or None for an empty Series."""
+        return aggregate.aggregate_last(self._column)
