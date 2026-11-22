@@ -9,6 +9,7 @@ from .errors import (
     SchemaError,
     ShapeError,
 )
+from .expr import Expr, col, lit
 from .series import Series
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "ComputeError",
     "CorruptedFileError",
     "DType",
+    "Expr",
     "Float64",
     "Int64",
     "MiniFrameError",
@@ -25,4 +27,6 @@ __all__ = [
     "Series",
     "ShapeError",
     "String",
+    "col",
+    "lit",
 ]

@@ -87,26 +87,17 @@ class Series:
         permutation = argsort((self._column,), descending=descending, nulls_last=nulls_last)
         return self._with_column(self._column.take(permutation))
 
-    def _mask_series(self, values: Bitmap) -> Self:
-        return self._with_column(
-            self._column._with_storage(values, Bitmap(len(self), True), dtype=Boolean)
-        )
-
     def is_null(self) -> Self:
         """Return a fully valid Boolean Series marking null positions."""
-        return self._mask_series(~self._column._validity)
+        return self._with_column(self._column._null_mask(is_null=True))
 
     def is_not_null(self) -> Self:
         """Return a fully valid Boolean Series marking valid positions."""
-        return self._mask_series(self._column._validity.slice(0, len(self)))
+        return self._with_column(self._column._null_mask(is_null=False))
 
     def fill_null(self, value: object) -> Self:
         """Copy this Series, replacing nulls with a value accepted by its dtype."""
-        if value is None or self.null_count == 0:
-            Column((value,), self.dtype)
-            return self.slice(0, len(self))
-        values = (value if (item := self[i]) is None else item for i in range(len(self)))
-        return self._with_column(Column(values, self.dtype))
+        return self._with_column(self._column.fill_null(value))
 
     def equals(self, other: Series, *, null_equal: bool = True) -> bool:
         """Compare name, dtype and logical values. Paired NaNs and signed zeros match.

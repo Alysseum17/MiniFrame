@@ -199,6 +199,30 @@ class Column:
     def to_list(self) -> list[_Scalar]:
         return [self.get(index) for index in range(self._length)]
 
+    def _null_mask(self, *, is_null: bool) -> Self:
+        values = ~self._validity if is_null else self._validity.slice(0, len(self))
+        return self._with_storage(values, Bitmap(len(self), True), dtype=Boolean)
+
+    def fill_null(self, value: object) -> Self:
+        """Replace null positions with one strictly compatible scalar."""
+        replacement = Column((value,), self.dtype)
+        if value is None or self.null_count == 0:
+            return self.slice(0, len(self))
+        values = self._values
+        if isinstance(values, Bitmap):
+            filled = values | ~self._validity if value is True else values.slice(0, len(self))
+            return self._with_storage(filled, Bitmap(len(self), True))
+        if isinstance(values, array):
+            filled = values[:]
+            item = cast(int | float, replacement.get(0))
+            for i in range(len(self)):
+                if not self._validity.get(i):
+                    filled[i] = item
+            return self._with_storage(filled, Bitmap(len(self), True))
+        return type(self)(
+            (self.get(i) if self._validity.get(i) else value for i in range(len(self))), self.dtype
+        )
+
     def slice(self, offset: int, length: int) -> Self:
         """Copy a range wholly inside the column. An empty range may start at the end."""
         if type(offset) is not int or type(length) is not int:
