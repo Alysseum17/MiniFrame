@@ -9,6 +9,7 @@ from .dtype import Boolean, DType, Float64, Int64, String
 from .errors import SchemaError
 from .kernels import aggregate, arithmetic, compare, logic
 from .kernels.cast import cast_column
+from .ops.sort import argsort
 
 
 def _infer_column(values: Iterable[object]) -> Column:
@@ -78,6 +79,13 @@ class Series:
     def cast(self, dtype: DType) -> Self:
         """Copy into the target dtype using strict conversions."""
         return self._with_column(cast_column(self._column, dtype))
+
+    def sort(self, *, descending: bool = False, nulls_last: bool = False) -> Self:
+        """Return a stable sorted copy. Nulls come first by default in either direction."""
+        if type(descending) is not bool or type(nulls_last) is not bool:
+            raise TypeError("descending and nulls_last must be bools")
+        permutation = argsort((self._column,), descending=descending, nulls_last=nulls_last)
+        return self._with_column(self._column.take(permutation))
 
     def _mask_series(self, values: Bitmap) -> Self:
         return self._with_column(

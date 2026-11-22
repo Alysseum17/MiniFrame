@@ -379,3 +379,35 @@ def test_series_aggregate_types_and_errors() -> None:
         text.mean()
     with pytest.raises(ComputeError):
         Series("x", [INT64_MAX, 1]).sum()
+
+
+@pytest.mark.parametrize(
+    ("dtype", "low", "high"),
+    [
+        (Int64, -2, 1),
+        (Float64, -inf, nan),
+        (Boolean, False, True),
+        (String, "", "🙂"),
+        (Categorical, "a", "z"),
+    ],
+)
+def test_series_sort_owns_result(dtype: DType, low: Scalar, high: Scalar) -> None:
+    values = [high, None, low, high]
+    source = Series("key", values, dtype)
+    for result, expected in (
+        (source.sort(), [None, low, high, high]),
+        (source.sort(descending=True, nulls_last=True), [high, high, low, None]),
+    ):
+        assert_series(result, dtype, expected, "key")
+        assert result._column._values is not source._column._values
+        assert result._column._validity._data is not source._column._validity._data
+    assert_series(source, dtype, values, "key")
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"descending": [True]}, {"nulls_last": (False,)}, {"descending": 1}, {"nulls_last": None}],
+)
+def test_series_sort_requires_boolean_flags(options: dict[str, object]) -> None:
+    with pytest.raises(TypeError):
+        Series("key", [], Int64).sort(**options)
