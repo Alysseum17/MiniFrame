@@ -8,6 +8,7 @@ from .eval import broadcast_scalar, evaluate_expr
 from .expr import Expr, Scalar, _Aggregate, _AggregateOp, _Alias, _name, col, output_name
 from .kernels.aggregate import _distinct_indices
 from .ops.groupby import hash_aggregate
+from .ops.join import JoinMode, KeyNames, join_columns
 from .ops.sort import argsort
 from .series import Series, _infer_column
 
@@ -147,6 +148,34 @@ class DataFrame:
     def group_by(self, *keys: str | Expr) -> GroupBy:
         """Define grouping keys for a subsequent eager aggregation."""
         return GroupBy(self, keys)
+
+    def join(
+        self,
+        other: DataFrame,
+        *,
+        on: KeyNames | None = None,
+        left_on: KeyNames | None = None,
+        right_on: KeyNames | None = None,
+        how: JoinMode = "inner",
+        suffix: str = "_right",
+    ) -> Self:
+        """Join on equal typed keys in left-row order, appending unmatched right rows last.
+
+        Null key components prevent a match. NaNs match each other. Right-only
+        rows contribute their keys under the corresponding left key names.
+        """
+        if not isinstance(other, DataFrame):
+            raise TypeError("other must be a DataFrame")
+        columns, height = join_columns(
+            self._columns,
+            other._columns,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            how=how,
+            suffix=suffix,
+        )
+        return self._from_columns(columns, height)
 
     def _take(self, indices: Sequence[int]) -> Self:
         columns = {name: column.take(indices) for name, column in self._columns.items()}
