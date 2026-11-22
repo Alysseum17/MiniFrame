@@ -10,6 +10,7 @@ from .errors import (
     ShapeError,
 )
 from .expr import Expr, col, lit
+from .frame import DataFrame
 from .series import Series
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "ColumnNotFoundError",
     "ComputeError",
     "CorruptedFileError",
+    "DataFrame",
     "DType",
     "Expr",
     "Float64",

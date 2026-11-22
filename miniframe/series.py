@@ -43,11 +43,20 @@ class Series:
         self._column = _infer_column(values) if dtype is None else Column(values, dtype)
         self._name = name
 
-    def _with_column(self, column: Column) -> Self:
-        result = type(self).__new__(type(self))
-        result._name = self._name
+    @classmethod
+    def _from_column(cls, name: str, column: Column) -> Self:
+        result = cls.__new__(cls)
+        result._name = name
         result._column = column
         return result
+
+    def _with_column(self, column: Column) -> Self:
+        return self._from_column(self.name, column)
+
+    def unique(self) -> Self:
+        """Keep distinct values in order of first occurrence."""
+        indices = aggregate._distinct_indices((self._column,), len(self))
+        return self._with_column(self._column.take(indices))
 
     @property
     def name(self) -> str:

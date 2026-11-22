@@ -173,6 +173,19 @@ def _distinct_key(value: _Scalar) -> object:
     return _NAN_KEY if isinstance(value, float) and isnan(value) else value
 
 
+def _distinct_indices(columns: tuple[Column, ...], height: int) -> list[int]:
+    if not columns:
+        return [0] if height else []
+    seen = set()
+    indices = []
+    for i in range(height):
+        key = tuple(_distinct_key(column.get(i)) for column in columns)
+        if key not in seen:
+            seen.add(key)
+            indices.append(i)
+    return indices
+
+
 def aggregate_n_unique(column: Column) -> int:
     """Count distinct logical values, grouping nulls, NaNs, and signed zeros respectively."""
     _require_column(column)

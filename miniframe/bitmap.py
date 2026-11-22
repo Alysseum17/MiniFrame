@@ -100,6 +100,10 @@ class Bitmap:
     def _from_int(cls, value: int, length: int) -> Self:
         return cls._from_owned(length, bytearray(value.to_bytes((length + 7) // 8, "little")))
 
+    def _concat(self, other: Bitmap) -> Self:
+        value = self._as_int() | (other._as_int() << len(self))
+        return self._from_int(value, len(self) + len(other))
+
     def popcount(self) -> int:
         return self._as_int().bit_count()
 

@@ -199,6 +199,17 @@ class Column:
     def to_list(self) -> list[_Scalar]:
         return [self.get(index) for index in range(self._length)]
 
+    def _concat(self, other: Column) -> Self:
+        """Append a column with the same dtype, rebuilding text storage from logical values."""
+        left, right = self._values, other._values
+        if isinstance(left, array) and isinstance(right, array):
+            return self._with_storage(left + right, self._validity._concat(other._validity))
+        if isinstance(left, Bitmap) and isinstance(right, Bitmap):
+            return self._with_storage(left._concat(right), self._validity._concat(other._validity))
+        return type(self)(
+            (column.get(i) for column in (self, other) for i in range(len(column))), self.dtype
+        )
+
     def _null_mask(self, *, is_null: bool) -> Self:
         values = ~self._validity if is_null else self._validity.slice(0, len(self))
         return self._with_storage(values, Bitmap(len(self), True), dtype=Boolean)
