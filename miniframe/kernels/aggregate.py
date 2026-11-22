@@ -47,25 +47,36 @@ def _numeric_values(column: Column) -> Iterator[_Number]:
     return cast(Iterator[_Number], _valid_values(column))
 
 
-def _float_total(values: Iterable[float], divisor: int) -> float:
-    """Accumulate finite binary fractions exactly, rounding once after division."""
-    total, scale = 0, 1
-    nonfinite = 0.0
-    for value in values:
+@dataclass(slots=True)
+class _FloatTotal:
+    total: int = 0
+    scale: int = 1
+    nonfinite: float = 0.0
+
+    def update(self, value: float) -> None:
         if not isfinite(value):
-            nonfinite += value
-            continue
+            self.nonfinite += value
+            return
         numerator, denominator = value.as_integer_ratio()
-        if denominator > scale:
-            total *= denominator // scale
-            scale = denominator
-        total += numerator * (scale // denominator)
-    if nonfinite != 0.0:
-        return nonfinite
-    try:
-        return total / (scale * divisor)
-    except OverflowError:
-        return inf if total > 0 else -inf
+        if denominator > self.scale:
+            self.total *= denominator // self.scale
+            self.scale = denominator
+        self.total += numerator * (self.scale // denominator)
+
+    def divided_by(self, divisor: int) -> float:
+        if self.nonfinite != 0.0:
+            return self.nonfinite
+        try:
+            return self.total / (self.scale * divisor)
+        except OverflowError:
+            return inf if self.total > 0 else -inf
+
+
+def _float_total(values: Iterable[float], divisor: int) -> float:
+    state = _FloatTotal()
+    for value in values:
+        state.update(value)
+    return state.divided_by(divisor)
 
 
 def aggregate_sum(column: Column) -> int | float:
@@ -92,18 +103,27 @@ def aggregate_mean(column: Column) -> float | None:
 
 @dataclass(slots=True)
 class _Welford:
-    """Online moments of finite observations within the extended-precision context."""
+    """Online sample moments updated and finalized in the extended-precision context."""
 
     count: int = 0
     mean: Decimal = Decimal(0)
     m2: Decimal = Decimal(0)
 
     def update(self, value: _Number) -> None:
-        x = +Decimal.from_float(value)
         self.count += 1
+        if not isfinite(value):
+            self.m2 = Decimal("NaN")
+            return
+        x = +Decimal.from_float(value)
         delta = x - self.mean
         self.mean += delta / self.count
         self.m2 += delta * (x - self.mean)
+
+    def sample_variance(self) -> Decimal | None:
+        if self.count < 2:
+            return None
+        assert self.m2.is_nan() or self.m2 >= 0, "negative Welford sum of squared deviations"
+        return self.m2 / (self.count - 1)
 
 
 def _sample_variance(column: Column) -> Decimal | None:
@@ -113,11 +133,8 @@ def _sample_variance(column: Column) -> Decimal | None:
     with localcontext(_WELFORD_CONTEXT):
         state = _Welford()
         for value in values:
-            if not isfinite(value):
-                return Decimal("NaN")
             state.update(value)
-        assert state.m2 >= 0, "negative Welford sum of squared deviations"
-        return state.m2 / (state.count - 1)
+        return state.sample_variance()
 
 
 def aggregate_var(column: Column) -> float | None:

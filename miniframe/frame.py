@@ -5,8 +5,9 @@ from .column import Column, _Scalar
 from .dtype import Boolean, DType
 from .errors import ColumnNotFoundError, SchemaError, ShapeError
 from .eval import broadcast_scalar, evaluate_expr
-from .expr import Expr, Scalar, _name, col, output_name
+from .expr import Expr, Scalar, _Aggregate, _AggregateOp, _Alias, _name, col, output_name
 from .kernels.aggregate import _distinct_indices
+from .ops.groupby import hash_aggregate
 from .ops.sort import argsort
 from .series import Series, _infer_column
 
@@ -143,6 +144,10 @@ class DataFrame:
         """Replace or append named expressions, evaluating all against the input."""
         return self._from_columns(self._columns | self._project(exprs), self.height)
 
+    def group_by(self, *keys: str | Expr) -> GroupBy:
+        """Define grouping keys for a subsequent eager aggregation."""
+        return GroupBy(self, keys)
+
     def _take(self, indices: Sequence[int]) -> Self:
         columns = {name: column.take(indices) for name, column in self._columns.items()}
         return self._from_columns(columns, len(indices))
@@ -253,3 +258,38 @@ class DataFrame:
             and self.columns == other.columns
             and all(self[name].equals(other[name], null_equal=null_equal) for name in self._columns)
         )
+
+
+class GroupBy:
+    """A grouping of a source frame, evaluated on each call to agg."""
+
+    __slots__ = ("_frame", "_keys")
+
+    def __init__(self, frame: DataFrame, keys: tuple[str | Expr, ...]) -> None:
+        if not keys:
+            raise ValueError("at least one grouping key is required")
+        if any(not isinstance(key, (str, Expr)) for key in keys):
+            raise TypeError("grouping keys must be strings or expressions")
+        self._frame = frame
+        self._keys = keys
+
+    def agg(self, *exprs: Expr) -> DataFrame:
+        """Reduce each group in first-occurrence order.
+
+        Aggregate operands are evaluated on the full input, including nested reductions.
+        """
+        keys = self._frame._project(self._keys)
+        operands: dict[str, tuple[_AggregateOp, Column]] = {}
+        for expr in exprs:
+            if not isinstance(expr, Expr):
+                raise TypeError("expected an aggregate expression")
+            name = output_name(expr)
+            while isinstance(expr, _Alias):
+                expr = expr.operand
+            if not isinstance(expr, _Aggregate):
+                raise ShapeError("expected an aggregate at the root of the expression")
+            if name in keys or name in operands:
+                raise SchemaError(f"duplicate output name: {name!r}")
+            operands[name] = expr.op, self._frame._evaluate(expr.operand)
+        columns = hash_aggregate(keys, operands, self._frame.height)
+        return DataFrame._from_columns(columns, len(next(iter(columns.values()))))
