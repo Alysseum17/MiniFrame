@@ -5,15 +5,14 @@ from typing import Literal
 
 from .column import _Scalar
 from .dtype import Boolean, DType, Float64, Int64, String
-from .errors import ComputeError, SchemaError
+from .errors import ComputeError, SchemaError, ShapeError
+from .kernels.aggregate import _AggregateOp
+from .ops import window
 
 type _Arithmetic = Literal["add", "sub", "mul", "div"]
 type _Comparison = Literal["eq", "ne", "lt", "le", "gt", "ge"]
 type _BinaryOp = _Arithmetic | _Comparison | Literal["and", "or"]
 type _UnaryOp = Literal["neg", "not", "is_null", "is_not_null"]
-type _AggregateOp = Literal[
-    "sum", "mean", "min", "max", "count", "len", "n_unique", "std", "var", "first", "last"
-]
 type _Operand = Expr | _Scalar
 
 
@@ -175,6 +174,52 @@ class Expr:
         """Read the last position, including null, or return null for empty input."""
         return _Aggregate("last", self)
 
+    def rolling_sum(self, window_size: int, min_periods: int | None = None) -> Expr:
+        """Sum valid values in the trailing window, requiring window_size by default."""
+        return _Rolling("sum", self, window_size, window.periods(window_size, min_periods))
+
+    def rolling_mean(self, window_size: int, min_periods: int | None = None) -> Expr:
+        return _Rolling("mean", self, window_size, window.periods(window_size, min_periods))
+
+    def rolling_min(self, window_size: int, min_periods: int | None = None) -> Expr:
+        return _Rolling("min", self, window_size, window.periods(window_size, min_periods))
+
+    def rolling_max(self, window_size: int, min_periods: int | None = None) -> Expr:
+        return _Rolling("max", self, window_size, window.periods(window_size, min_periods))
+
+    def cum_sum(self) -> Expr:
+        return _Cumulative("sum", self)
+
+    def cum_min(self) -> Expr:
+        return _Cumulative("min", self)
+
+    def cum_max(self) -> Expr:
+        return _Cumulative("max", self)
+
+    def rank(self, method: window.RankMethod = "average", descending: bool = False) -> Expr:
+        """Rank valid rows from one, breaking ordinal ties in original row order."""
+        window.validate_rank(method, descending)
+        return _Rank(self, method, descending)
+
+    def shift(self, n: int) -> Expr:
+        """Move values n rows forward (backward for negative n), padding with null."""
+        window.validate_shift(n)
+        return _Shift(self, n)
+
+    def over(self, *keys: str | Expr) -> Expr:
+        """Compute a root reduction per key and broadcast it to the group's input rows."""
+        root = self
+        while isinstance(root, _Alias):
+            root = root.operand
+        if not isinstance(root, _Aggregate):
+            raise ShapeError("over requires a root aggregation")
+        if not keys:
+            raise ValueError("over requires at least one grouping key")
+        if any(not isinstance(key, (str, Expr)) for key in keys):
+            raise TypeError("grouping keys must be strings or expressions")
+        grouped = _Over(root, tuple(col(key) if isinstance(key, str) else key for key in keys))
+        return grouped.alias(self.name) if isinstance(self, _Alias) else grouped
+
 
 @dataclass(frozen=True, slots=True, eq=False)
 class _ColumnRef(Expr):
@@ -223,6 +268,39 @@ class _Aggregate(Expr):
     operand: Expr
 
 
+@dataclass(frozen=True, slots=True, eq=False)
+class _Rolling(Expr):
+    op: window.RollingOp
+    operand: Expr
+    size: int
+    minimum: int
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _Cumulative(Expr):
+    op: window.CumulativeOp
+    operand: Expr
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _Rank(Expr):
+    operand: Expr
+    method: window.RankMethod
+    descending: bool
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _Shift(Expr):
+    operand: Expr
+    n: int
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _Over(Expr):
+    operand: _Aggregate
+    keys: tuple[Expr, ...]
+
+
 def _name(name: str) -> str:
     if type(name) is not str:
         raise SchemaError("column name must be a string")
@@ -252,7 +330,18 @@ def _first_column(expr: Expr) -> str | None:
         case _Binary(_, left, right):
             first = _first_column(left)
             return _first_column(right) if first is None else first
-        case _Unary() | _Fill() | _Cast() | _Alias() | _Aggregate():
+        case (
+            _Unary()
+            | _Fill()
+            | _Cast()
+            | _Alias()
+            | _Aggregate()
+            | _Rolling()
+            | _Cumulative()
+            | _Rank()
+            | _Shift()
+            | _Over()
+        ):
             return _first_column(expr.operand)
         case _:
             raise TypeError("expected an expression built with col() or lit()")

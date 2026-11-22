@@ -5,13 +5,16 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from decimal import Context, Decimal, localcontext
 from math import inf, isfinite, isnan
-from typing import cast
+from typing import Literal, cast
 
 from ..column import Column, _Scalar
 from ..dtype import Boolean, Float64, Int64
 from ..errors import SchemaError
 from .arithmetic import _checked_int64
 
+type _AggregateOp = Literal[
+    "sum", "mean", "min", "max", "count", "len", "n_unique", "std", "var", "first", "last"
+]
 type _Number = int | float
 type _Value = int | float | bool | str
 

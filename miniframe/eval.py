@@ -19,13 +19,19 @@ from .expr import (
     _BinaryOp,
     _Cast,
     _ColumnRef,
+    _Cumulative,
     _Fill,
     _Literal,
     _name,
+    _Over,
+    _Rank,
+    _Rolling,
+    _Shift,
     _Unary,
 )
 from .kernels import aggregate, arithmetic, compare, logic
 from .kernels.cast import cast_column
+from .ops import window
 
 type Value = Column | Scalar
 
@@ -172,7 +178,9 @@ def evaluate_expr(expr: Expr, columns: Mapping[str, Column], *, height: int) -> 
         if len(column) != height:
             raise ShapeError(f"column {name!r} has length {len(column)}, expected {height}")
 
-    def visit(node: Expr) -> Value:
+    def visit(node: Expr, in_partition: bool = False) -> Value:
+        if in_partition and isinstance(node, (_Aggregate, _Over)):
+            raise ShapeError("nested aggregation or over inside a grouped window")
         match node:
             case _ColumnRef(name):
                 if name not in columns:
@@ -181,13 +189,29 @@ def evaluate_expr(expr: Expr, columns: Mapping[str, Column], *, height: int) -> 
             case _Literal(scalar):
                 return scalar
             case _Alias(operand, _):
-                return visit(operand)
+                return visit(operand, in_partition)
             case _Binary(op, left, right):
-                return _binary(op, visit(left), visit(right), height)
+                return _binary(op, visit(left, in_partition), visit(right, in_partition), height)
+            case _Rolling(op, operand, size, minimum):
+                return window.rolling(
+                    _as_column(visit(operand, in_partition), height), op, size, minimum
+                )
+            case _Cumulative(op, operand):
+                return window.cumulative(_as_column(visit(operand, in_partition), height), op)
+            case _Rank(operand, method, descending):
+                return window.rank(
+                    _as_column(visit(operand, in_partition), height), method, descending
+                )
+            case _Shift(operand, n):
+                return window.shift(_as_column(visit(operand, in_partition), height), n)
+            case _Over(reduction, keys):
+                partitions = tuple(_as_column(visit(key, True), height) for key in keys)
+                source = _as_column(visit(reduction.operand, True), height)
+                return window.over(source, reduction.op, partitions)
             case _Aggregate(op, operand):
-                return _reduce(op, visit(operand), height)
+                return _reduce(op, visit(operand, in_partition), height)
             case _Unary() | _Fill() | _Cast():
-                return _elementwise(node, visit(node.operand))
+                return _elementwise(node, visit(node.operand, in_partition))
             case _:
                 raise TypeError("expected an expression built with col() or lit()")
 

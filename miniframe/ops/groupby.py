@@ -1,6 +1,6 @@
 """Stable hash grouping and streaming reductions over prepared columns."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import localcontext
 from functools import partial
@@ -9,8 +9,14 @@ from typing import Protocol, cast
 from ..column import Column, _Scalar
 from ..dtype import Boolean, DType, Float64, Int64
 from ..errors import SchemaError
-from ..expr import _AggregateOp
-from ..kernels.aggregate import _WELFORD_CONTEXT, _distinct_key, _float_order, _FloatTotal, _Welford
+from ..kernels.aggregate import (
+    _WELFORD_CONTEXT,
+    _AggregateOp,
+    _distinct_key,
+    _float_order,
+    _FloatTotal,
+    _Welford,
+)
 from ..kernels.arithmetic import _checked_int64
 
 
@@ -152,20 +158,23 @@ def _reduction(op: _AggregateOp, dtype: DType) -> tuple[DType, Callable[[], _Acc
     return Int64, partial(_Count, op == "len")
 
 
+def group_ids(keys: Sequence[Column], height: int) -> Iterator[int]:
+    groups: dict[tuple[object, ...], int] = {}
+    for row in range(height):
+        key = tuple(_distinct_key(column.get(row)) for column in keys)
+        yield groups.setdefault(key, len(groups))
+
+
 def hash_aggregate(
     keys: dict[str, Column], operands: dict[str, tuple[_AggregateOp, Column]], height: int
 ) -> dict[str, Column]:
     reductions = [_reduction(op, column.dtype) for op, column in operands.values()]
     inputs = [column for _, column in operands.values()]
-    groups: dict[tuple[object, ...], int] = {}
     first_rows: list[int] = []
     states: list[list[_Accumulator]] = []
     with localcontext(_WELFORD_CONTEXT):
-        for row in range(height):
-            key = tuple(_distinct_key(column.get(row)) for column in keys.values())
-            group = groups.get(key)
-            if group is None:
-                group = groups[key] = len(first_rows)
+        for row, group in enumerate(group_ids(tuple(keys.values()), height)):
+            if group == len(states):
                 first_rows.append(row)
                 states.append([factory() for _, factory in reductions])
             for state, column in zip(states[group], inputs, strict=True):

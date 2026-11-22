@@ -7,7 +7,7 @@ from math import isfinite
 from typing import cast
 
 from ..column import Column
-from ..dtype import INT64_MAX, INT64_MIN, Categorical, DType, Int64, String
+from ..dtype import INT64_MAX, INT64_MIN, Boolean, Categorical, DType, Int64, String
 from ..errors import ComputeError, SchemaError
 
 _INTEGER = re.compile(r"[+-]?[0-9]+")
@@ -53,6 +53,9 @@ def cast_column(column: Column, dtype: DType) -> Column:
     source = column.dtype
     if source is dtype:
         return column.slice(0, len(column))
+    if source is Boolean and dtype is Int64:
+        values = (column.get(i) for i in range(len(column)))
+        return Column((None if value is None else int(value) for value in values), Int64)
     if {source, dtype} == {String, Categorical}:
         try:
             return Column((column.get(i) for i in range(len(column))), dtype)

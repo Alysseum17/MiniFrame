@@ -26,6 +26,7 @@ type Scalar = int | float | bool | str | None
 
 samples = {Int64: -2, Float64: -2.0, Boolean: True, String: "-2", Categorical: "-2"}
 conversions = {
+    (Boolean, Int64): 1,
     (Int64, Float64): -2.0,
     (Float64, Int64): -2,
     (String, Int64): -2,
