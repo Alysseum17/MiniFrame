@@ -232,7 +232,13 @@ VALUES = {
 
 
 @given(st.lists(st.sampled_from(list(DType)), min_size=1, max_size=3), st.data())
-@settings(derandomize=True, deadline=None, max_examples=120)
+@settings(
+    derandomize=True,
+    deadline=None,
+    max_examples=120
+    if settings.get_current_profile_name() == "dev"
+    else settings.default.max_examples,
+)
 def test_three_way_equivalence(types: list[DType], data: st.DataObject) -> None:
     row = st.tuples(*(st.none() | VALUES[dtype] for dtype in types))
     rows = st.lists(row, max_size=15)

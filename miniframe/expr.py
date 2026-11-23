@@ -340,9 +340,14 @@ def _first_column(expr: Expr) -> str | None:
             | _Cumulative()
             | _Rank()
             | _Shift()
-            | _Over()
         ):
             return _first_column(expr.operand)
+        case _Over(operand, keys):
+            for child in (operand, *keys):
+                name = _first_column(child)
+                if name is not None:
+                    return name
+            return None
         case _:
             raise TypeError("expected an expression built with col() or lit()")
 

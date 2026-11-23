@@ -355,7 +355,7 @@ VALUES = {
 
 
 @pytest.mark.parametrize("dtype", list(DType))
-@settings(max_examples=45, deadline=None, derandomize=True)
+@settings(deadline=None, derandomize=True)
 @given(data=st.data(), size=st.integers(1, 12), offset=st.integers(-20, 20))
 def test_properties(dtype: DType, data: st.DataObject, size: int, offset: int) -> None:
     values = data.draw(st.lists(st.none() | VALUES[dtype], max_size=18))

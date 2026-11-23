@@ -121,8 +121,14 @@ def test_null_scalar_and_validation(kernel: Kernel, op: Predicate) -> None:
         assert_result(kernel(column, None), [None] * 3)
     for a, b in product(DType, repeat=2):
         if (a, b) not in compatible or (a is b is Boolean and op not in (operator.eq, operator.ne)):
-            with pytest.raises(SchemaError):
+            reason = (
+                "Boolean supports only equality and inequality"
+                if a is b is Boolean
+                else f"cannot compare {a.value} with {b.value}"
+            )
+            with pytest.raises(SchemaError) as error:
                 kernel(Column([], a), Column([], b))
+            assert str(error.value) == reason
     empty = Column([], Int64)
     for bad in (True, "1", object()):
         with pytest.raises(SchemaError):
@@ -130,11 +136,13 @@ def test_null_scalar_and_validation(kernel: Kernel, op: Predicate) -> None:
         with pytest.raises(SchemaError):
             kernel(empty, bad)
     for bad_int in (INT64_MAX + 1, INT64_MIN - 1):
-        with pytest.raises(ComputeError):
+        with pytest.raises(ComputeError, match="^Int64 overflow$"):
             kernel(bad_int, empty)
     with pytest.raises(ShapeError):
         kernel(Column([1], Int64), Column([1, 2], Int64))
-    with pytest.raises(TypeError):
+    with pytest.raises(SchemaError, match="^unsupported comparison operand: object$"):
+        kernel(empty, object())
+    with pytest.raises(TypeError, match="^at least one operand must be a Column$"):
         kernel(1, 2)
 
 

@@ -1,13 +1,13 @@
 import operator
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 from math import inf, isnan, nan, sqrt
 
 import polars as pl
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from strategies import tree_cases
 
 from miniframe import (
     Boolean,
@@ -323,57 +323,6 @@ def test_invalid_computations(expr: Expr, error: type[Exception]) -> None:
     with pytest.raises(error):
         evaluate_expr(expr, columns, height=1)
     assert_column(columns["a"], Int64, [1])
-
-
-type Row = dict[str, _Scalar]
-
-
-@dataclass(frozen=True, eq=False)
-class TreeCase:
-    expr: Expr
-    polars: pl.Expr
-    row_value: Callable[[Row], _Scalar]
-    columnar: bool
-
-
-@st.composite
-def tree_cases(draw: st.DrawFn, dtype: DType, numeric: DType, depth: int) -> TreeCase:
-    pl_type = {Boolean: pl.Boolean, Int64: pl.Int64, Float64: pl.Float64}[dtype]
-    if depth == 0 or draw(st.booleans()):
-        if draw(st.booleans()):
-            name = "flag" if dtype is Boolean else draw(st.sampled_from(["a", "b"]))
-            return TreeCase(col(name), pl.col(name), operator.itemgetter(name), True)
-        values = st.booleans() if dtype is Boolean else st.integers(-4, 4)
-        literal = draw(st.none() | values)
-        if dtype is Float64 and literal is not None:
-            literal = float(literal) / 2
-        return TreeCase(
-            lit(literal).cast(dtype), pl.lit(literal, pl_type), lambda _: literal, False
-        )
-
-    if dtype is Boolean:
-        operation = draw(st.sampled_from([operator.and_, operator.or_, operator.gt, operator.eq]))
-        child_type = numeric if operation in (operator.gt, operator.eq) else Boolean
-    else:
-        operation = draw(st.sampled_from([operator.add, operator.sub, operator.mul]))
-        child_type = numeric
-    left = draw(tree_cases(child_type, numeric, depth - 1))
-    right = draw(tree_cases(child_type, numeric, depth - 1))
-
-    def row_value(row: Row) -> _Scalar:
-        a, b = left.row_value(row), right.row_value(row)
-        if operation is operator.and_ and (a is False or b is False):
-            return False
-        if operation is operator.or_ and (a is True or b is True):
-            return True
-        return None if a is None or b is None else operation(a, b)
-
-    return TreeCase(
-        operation(left.expr, right.expr),
-        operation(left.polars, right.polars),
-        row_value,
-        left.columnar or right.columnar,
-    )
 
 
 @settings(derandomize=True, deadline=None)

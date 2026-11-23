@@ -8,6 +8,7 @@ from zlib import crc32
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from strategies import frames
 
 import miniframe as mf
 from miniframe.io import mf_format
@@ -220,8 +221,8 @@ def test_checksums_footer_and_extra_bytes(tmp_path: Path) -> None:
     path = tmp_path / "bad"
     for offset, message in [
         (59, "Header CRC mismatch"),
-        (63, "Column 'b': buffer CRC mismatch"),
         (64, "Column 'b': buffer CRC mismatch"),
+        (63, "Column 'b': buffer CRC mismatch"),
         (66, "Invalid MF1 trailing magic"),
     ]:
         sample = bytearray(GOLDEN)
@@ -460,38 +461,6 @@ def test_read_filesystem_error(tmp_path: Path) -> None:
     with pytest.raises(mf.CorruptedFileError) as exc:
         mf.read_mf(tmp_path / "absent")
     assert isinstance(exc.value.__cause__, FileNotFoundError)
-
-
-TEXT = st.text(max_size=16) | st.sampled_from(["", "é", "猫", 'q,u"o\nte'])
-SCALARS = {
-    mf.Int64: st.integers(-(2**63), 2**63 - 1) | st.sampled_from([-(2**63), 2**63 - 1]),
-    mf.Float64: st.floats(width=64)
-    | st.sampled_from([-0.0, 0.0, float("inf"), float("-inf"), float("nan")]),
-    mf.Boolean: st.booleans(),
-    mf.String: TEXT,
-    mf.Categorical: st.sampled_from(["", "a", "猫"]) | TEXT,
-}
-
-
-@st.composite
-def frames(draw: st.DrawFn) -> mf.DataFrame:
-    rows = draw(st.integers(0, 17))
-    dtypes = draw(st.lists(st.sampled_from(list(mf.DType)), max_size=7))
-    if not dtypes:
-        return mf.DataFrame({"x": range(rows)}, schema={"x": mf.Int64}).select()
-    columns = []
-    for i, dtype in enumerate(dtypes):
-        mode = draw(st.sampled_from(["all null", "all valid", "mixed"]))
-        scalar = SCALARS[dtype]
-        if mode == "mixed":
-            scalar = st.none() | scalar
-        values = (
-            [None] * rows
-            if mode == "all null"
-            else draw(st.lists(scalar, min_size=rows, max_size=rows))
-        )
-        columns.append(mf.Series(f"{i}_{dtype.value}", values, dtype))
-    return mf.DataFrame.from_series(columns)
 
 
 def test_generated_roundtrips_and_corruption(tmp_path: Path) -> None:

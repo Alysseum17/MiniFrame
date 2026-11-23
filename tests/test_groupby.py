@@ -285,7 +285,7 @@ def key_of(row: Row, width: int) -> tuple[object, ...]:
     return tuple("NaN" if isinstance(x, float) and isnan(x) else x for x in row[:width])
 
 
-@settings(derandomize=True, max_examples=100, deadline=None)
+@settings(derandomize=True, deadline=None)
 @given(
     st.lists(
         st.tuples(
@@ -344,7 +344,7 @@ def test_partition_properties(rows: list[Row], width: int) -> None:
     assert summaries[0] == summaries[1]
 
 
-@settings(derandomize=True, max_examples=70)
+@settings(derandomize=True)
 @given(
     st.lists(
         st.tuples(st.booleans(), st.none() | st.sampled_from([INT64_MIN, -1, 0, 1, INT64_MAX])),
