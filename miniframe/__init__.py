@@ -11,6 +11,7 @@ from .errors import (
 )
 from .expr import Expr, col, lit
 from .frame import DataFrame
+from .io import read_mf, write_mf
 from .series import Series
 
 __all__ = [
@@ -31,4 +32,6 @@ __all__ = [
     "String",
     "col",
     "lit",
+    "read_mf",
+    "write_mf",
 ]
