@@ -6,7 +6,7 @@ class SchemaError(MiniFrameError):
     """Incompatible schema or types, or duplicate column names."""
 
 
-class ColumnNotFoundError(MiniFrameError):
+class ColumnNotFoundError(SchemaError):
     """Reference to a column that does not exist."""
 
 

@@ -83,9 +83,10 @@ def test_invalid_length(length: object, error: type[Exception]) -> None:
 )
 def test_invalid_index(size: int, i: object, error: type[Exception]) -> None:
     bitmap = Bitmap(size)
-    with pytest.raises(error):
+    message = "^bit index out of range$" if error is IndexError else None
+    with pytest.raises(error, match=message):
         bitmap.get(i)
-    with pytest.raises(error):
+    with pytest.raises(error, match=message):
         bitmap.set(i, True)
     assert_bitmap(bitmap, [False] * size)
 

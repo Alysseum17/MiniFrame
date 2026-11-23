@@ -40,12 +40,26 @@ exclude = ["docs/design-doc.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--import-mode=importlib"
+pythonpath = ["tests"]
+addopts = "--import-mode=importlib --ignore=tests/benchmarks"
 
 [tool.coverage.run]
 branch = true
 source = ["miniframe"]
 
 [tool.mutmut]
+process_isolation = "forkserver"
+forkserver_warmup = "none"
 source_paths = ["miniframe/"]
+only_mutate = [
+    "miniframe/bitmap.py",
+    "miniframe/kernels/logic.py",
+    "miniframe/kernels/compare.py",
+    "miniframe/ops/sort.py",
+    "miniframe/ops/join.py",
+    "miniframe/ops/groupby.py",
+    "miniframe/ops/window.py",
+    "miniframe/io/mf_format.py",
+]
 pytest_add_cli_args_test_selection = ["tests/"]
+pytest_add_cli_args = ["-k", "not test_every_prefix_and_byte_replacement"]

@@ -12,17 +12,17 @@ from miniframe import (
 
 def test_exception_hierarchy() -> None:
     assert MiniFrameError.__bases__ == (Exception,)
+    assert ColumnNotFoundError.__bases__ == (SchemaError,)
 
-    error_types = (
+    direct_subclasses = (
         SchemaError,
-        ColumnNotFoundError,
         ShapeError,
         ComputeError,
         CorruptedFileError,
     )
 
-    for error_type in error_types:
-        assert issubclass(error_type, MiniFrameError)
+    for error_type in direct_subclasses:
+        assert error_type.__bases__ == (MiniFrameError,)
 
 
 @pytest.mark.parametrize(
